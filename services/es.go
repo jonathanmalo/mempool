@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"github.com/elastic/go-elasticsearch/v7"
 	"github.com/elastic/go-elasticsearch/v7/esapi"
-	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"log"
@@ -37,31 +36,6 @@ func formatEthWeiToEther(etherAmount *big.Int) float64 {
 	return final
 }
 
-func isTxMined(txHash string, client *ethclient.Client) bool {
-	finalTxHash := common.HexToHash(txHash)
-	_, isPending, err := client.TransactionByHash(context.Background(), finalTxHash)
-	if err != nil {
-		log.Fatal(err)
-	}
-	return !isPending
-}
-
-func hasTxFailed(txHash string, client *ethclient.Client) bool {
-	if isTxMined(txHash, client) {
-		receipt, err := client.TransactionReceipt(context.Background(), common.HexToHash(txHash))
-		if err != nil {
-			log.Fatal(err)
-		}
-		if receipt.Status == 1 {
-			return false
-		} else {
-			return true
-		}
-	} else {
-		return false
-	}
-}
-
 func pipeTransaction(tx *types.Transaction, client *ethclient.Client) {
 	if len(tx.Data()) < 4 || tx.To() == nil {
 		return
@@ -84,10 +58,6 @@ func pipeTransaction(tx *types.Transaction, client *ethclient.Client) {
 		Nonce    uint64  `json:"nonce"`
 		GasPrice float64 `json:"gasPrice"`
 		Gas      float64 `json:"gas"`
-		// Custom tags that are updated after a block including the tx is mined
-		Mined         bool  `json:"txMined"`
-		BlockIncluded int64 `json:"blockIncluded"`
-		Failed        bool  `json:"txFailed"`
 	}{}
 	body.TimeSeen = time.Now().Unix()
 	body.Hash = tx.Hash().Hex()
@@ -99,8 +69,6 @@ func pipeTransaction(tx *types.Transaction, client *ethclient.Client) {
 	formattedGas := new(big.Int).SetUint64(tx.Gas())
 	body.Gas = formatEthWeiToEther(formattedGas)
 	body.GasPrice = formatEthWeiToEther(tx.GasPrice())
-	body.Mined = isTxMined(tx.Hash().Hex(), client)
-	body.Failed = hasTxFailed(tx.Hash().Hex(), client)
 	jsonBytes, _ := json.Marshal(body)
 	// Set up the request object.
 	req := esapi.IndexRequest{

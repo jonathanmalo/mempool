@@ -13,7 +13,6 @@ func main() {
 		fmt.Println("Flushing the index:", *flush)
 		services.FlushIndexData(*flush)
 	} else {
-		fmt.Println("Streaming mempool over IPC socket")
 		services.StreamMempool()
 	}
 }

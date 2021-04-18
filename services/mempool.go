@@ -80,6 +80,9 @@ func getRpcClient(url string) *rpc.Client {
 func StreamMempool() {
 	localIpc := os.Getenv("HOME") + "/.ethereum/geth.ipc"
 	client := getRpcClient(localIpc)
+	fmt.Println("Streaming mempool over IPC socket: ", localIpc)
 	go StreamNewTxs(client)
 	go StreamNewBlocks(client)
+	for {
+	}
 }
