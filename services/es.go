@@ -90,21 +90,16 @@ func pipeTransaction(tx *types.Transaction, client *ethclient.Client) {
 		var r map[string]interface{}
 		if err := json.NewDecoder(res.Body).Decode(&r); err != nil {
 			log.Printf("Error parsing the response body: %s", err)
-		} else {
-			// Print the response status and indexed document version.
-			log.Printf("[%s] %s; version=%d", res.Status(), r["result"], int(r["_version"].(float64)))
 		}
+		// else {
+		// 	// Print the response status and indexed document version.
+		// 	log.Printf("[%s] %s; version=%d", res.Status(), r["result"], int(r["_version"].(float64)))
+		// }
 	}
 }
 
-func getTxIDByHash(txHash string) string {
-	var (
-		r map[string]interface{}
-	)
+func DeleteTx(txHash string) int {
 	es, _ := elasticsearch.NewDefaultClient()
-	// 3. Search for the indexed documents
-	//
-	// Build the request body.
 	var buf bytes.Buffer
 	query := map[string]interface{}{
 		"query": map[string]interface{}{
@@ -143,40 +138,39 @@ func getTxIDByHash(txHash string) string {
 			)
 		}
 	}
-
+	// fmt.Printf("%v", res)
+	var r map[string]interface{}
 	if err := json.NewDecoder(res.Body).Decode(&r); err != nil {
 		log.Fatalf("Error parsing the response body: %s", err)
 	}
 
-	// Print the ID and document source for each hit.
-	for _, hit := range r["hits"].(map[string]interface{})["hits"].([]interface{}) {
-		return fmt.Sprintf("%v", hit.(map[string]interface{})["_id"])
+	if r["hits"].(map[string]interface{})["total"].(map[string]interface{})["value"].(float64) == 0.0 {
+		return 0
 	}
-	return ""
-}
 
-func DeleteTx(txHash string, client *ethclient.Client) {
-	txID := getTxIDByHash(txHash)
-	if txID != "" {
-		es, err := elasticsearch.NewDefaultClient()
-		if err != nil {
-			log.Fatalf("Error connecting to es client: %s", err)
-		}
-		res, err := es.Delete("transactions", txID)
+	for _, hit := range r["hits"].(map[string]interface{})["hits"].([]interface{}) {
+		txId := hit.(map[string]interface{})["_id"].(string)
+		// fmt.Printf("\nDeleting %s\n", txId)
+		res, err := es.Delete("transactions", txId)
 		if err != nil {
 			fmt.Println("Error getting the response:", err)
 		}
 		defer res.Body.Close()
 	}
+	return 1
 }
 
-func pipeBlock(block *types.Block, client *ethclient.Client) {
-	// TODO: delete mined txs from elasticsearch
+func pipeBlock(block *types.Block) {
+	// delete mined txs from elastic search
+	// TODO: delete all txs from same account with nonce <= mined tx nonce
 	fmt.Println("MINED: Block #", block.Number())
+	var count int
 	for _, tx := range block.Transactions() {
-		fmt.Println(tx.Hash().Hex())
-		DeleteTx(tx.Hash().Hex(), client)
+		// fmt.Printf("\r%s", tx.Hash().Hex())
+		count += DeleteTx(tx.Hash().Hex())
 	}
+	total := len(block.Transactions())
+	fmt.Printf("%.2f%% of block transactions were found by this peer (%d of %d)\n", 100.0*float64(count)/float64(total), count, total)
 }
 
 // This removes all the data in a given elastic instance

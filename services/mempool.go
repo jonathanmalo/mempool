@@ -29,6 +29,7 @@ func StreamNewTxs(rpcClient *rpc.Client) {
 			// Get transaction object from hash by querying the client
 			tx, is_pending, _ := client.TransactionByHash(context.Background(), transactionHash)
 			// If tx is valid and still unconfirmed
+			// TODO: evm execution check
 			if is_pending {
 				_, _ = signer.Sender(tx)
 				pipeTransaction(tx, client)
@@ -42,7 +43,7 @@ func handleBlock(blockHash common.Hash, client *ethclient.Client) {
 	if err != nil {
 		log.Fatal(err)
 	}
-	pipeBlock(block, client)
+	pipeBlock(block)
 }
 
 func StreamNewBlocks(rpcClient *rpc.Client) {
@@ -61,7 +62,6 @@ func StreamNewBlocks(rpcClient *rpc.Client) {
 		select {
 		// Code block is executed when a new block is piped to the channel
 		case lastBlockHeader := <-newBlocksChannel:
-			fmt.Println("New block in channel")
 			func() {
 				go handleBlock(lastBlockHeader.Hash(), client)
 			}()
